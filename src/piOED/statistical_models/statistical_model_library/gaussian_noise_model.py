@@ -1,10 +1,10 @@
 import numpy as np
 
-from piOED.minimizer.interfaces.minimizer import Minimizer
-from piOED.parametric_function_library.interfaces.parametric_function import (
+from external_packages.oed.src.piOED.minimizer.interfaces.minimizer import Minimizer
+from external_packages.oed.src.piOED.parametric_function_library.interfaces.parametric_function import (
     ParametricFunction,
 )
-from piOED.statistical_models.interfaces.statistical_model import StatisticalModel
+from external_packages.oed.src.piOED.statistical_models.interfaces.statistical_model import StatisticalModel
 
 
 class GaussianNoiseModel(StatisticalModel):
@@ -42,31 +42,28 @@ class GaussianNoiseModel(StatisticalModel):
         self._lower_bounds_x = lower_bounds_x
         self._upper_bounds_x = upper_bounds_x
 
-    def __call__(self, x: np.ndarray, theta: np.ndarray) -> np.ndarray:
-        return self._function(theta=theta, x=x)
+    def __call__(self, x: np.ndarray, theta: np.ndarray, **kwargs) -> np.ndarray:
+        return self._function(theta=theta, x=x, **kwargs)
 
-    def random(self, x: np.ndarray, theta: np.ndarray) -> np.ndarray:
+    def random(self, x: np.ndarray, theta: np.ndarray, **kwargs) -> np.ndarray:
         return np.random.normal(
-            loc=self._function(theta=theta, x=x), scale=np.sqrt(self._var)
+            loc=self._function(theta=theta, x=x, **kwargs), scale=np.sqrt(self._var)
         )
 
     def calculate_fisher_information(
-            self, theta: np.ndarray, i: int, j: int, x0: np.ndarray
+            self, theta: np.ndarray, i: int, j: int, x0: np.ndarray, **kwargs
     ):
-        return (1 / self._var * np.dot(np.array(
-            [self._function.partial_derivative(theta=theta, x=x_k, parameter_index=i) for x_k in x0]).flatten().T,
-                                       np.array(
-                                           [self._function.partial_derivative(theta=theta, x=x_k, parameter_index=j) for
-                                            x_k in x0]).flatten()))
+        return (1 / self._var * np.dot(self._function.partial_derivative(theta=theta, x=x0, parameter_index=i, **kwargs).flatten().T,
+                                       self._function.partial_derivative(theta=theta, x=x0, parameter_index=j, **kwargs).flatten()))
 
     def calculate_fisher_information_matrix(
-            self, x0: np.ndarray, theta: np.ndarray
+            self, x0: np.ndarray, theta: np.ndarray, **kwargs
     ) -> np.ndarray:
         k = len(theta)
         return np.array(
             [
                 [
-                    self.calculate_fisher_information(theta=theta, x0=x0, i=i, j=j)
+                    self.calculate_fisher_information(theta=theta, x0=x0, i=i, j=j, **kwargs)
                     for i in range(k)
                 ]
                 for j in range(k)
@@ -74,24 +71,26 @@ class GaussianNoiseModel(StatisticalModel):
         )
 
     def calculate_log_likelihood(
-            self, theta: np.ndarray, x0: np.ndarray, y: np.ndarray,
+            self, theta: np.ndarray, x0: np.ndarray, y: np.ndarray, *args
     ) -> np.ndarray:
-        return np.sum((y - np.array([self._function(theta=theta, x=x) for x in x0])) ** 2)
+        kwargs = dict(zip(args[0], args[1]))
+        yhat = self._function(theta=theta, x=x0, **kwargs)
+        return np.sum(np.square((y - yhat)))
 
     def calculate_likelihood(
-            self, x0: np.ndarray, y: np.ndarray, theta: np.ndarray
+            self, x0: np.ndarray, y: np.ndarray, theta: np.ndarray, **kwargs
     ) -> float:
-        return np.exp(self.calculate_log_likelihood(x0=x0, y=y, theta=theta))
+        return np.exp(self.calculate_log_likelihood(x0=x0, y=y, theta=theta, **kwargs))
 
     def calculate_partial_derivative_log_likelihood(
-            self, x0: np.ndarray, y: np.ndarray, theta: np.ndarray, parameter_index: int
+            self, x0: np.ndarray, y: np.ndarray, theta: np.ndarray, parameter_index: int, **kwargs
     ) -> np.ndarray:
         return -np.sum(
-            (y - np.array([self._function(theta=theta, x=x) for x in x0]))
+            (y - np.array([self._function(theta=theta, x=x, **kwargs) for x in x0]))
             * np.array(
                 [
                     self._function.partial_derivative(
-                        theta=theta, x=x, parameter_index=parameter_index
+                        theta=theta, x=x, parameter_index=parameter_index, **kwargs,
                     )
                     for x in x0
                 ]
@@ -99,11 +98,18 @@ class GaussianNoiseModel(StatisticalModel):
         )
 
     def calculate_maximum_likelihood_estimation(
-            self, x0: np.ndarray, y: np.ndarray, minimizer: Minimizer
+            self, x0: np.ndarray, y: np.ndarray, minimizer: Minimizer, **kwargs
     ) -> np.ndarray:
+        args = None
+        kwargs_keys = None
+
+        if len(kwargs) > 0:
+            args = kwargs.values()
+            kwargs_keys = kwargs.keys()
+
         return minimizer(
             function=self.calculate_log_likelihood,
-            fcn_args=(x0, y),
+            fcn_args=(x0, y, kwargs_keys, args),
             lower_bounds=self.lower_bounds_theta,
             upper_bounds=self.upper_bounds_theta,
         )

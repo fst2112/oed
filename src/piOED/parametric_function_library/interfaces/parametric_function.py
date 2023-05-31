@@ -13,7 +13,7 @@ class ParametricFunction(ABC):
     """
 
     @abstractmethod
-    def __call__(self, theta: np.ndarray, x: np.ndarray) -> np.ndarray:
+    def __call__(self, theta: np.ndarray, x: np.ndarray, **kwargs) -> np.ndarray:
         """Evaluate the function f_{-} at theta and x
 
         Parameters
@@ -32,7 +32,7 @@ class ParametricFunction(ABC):
 
     @abstractmethod
     def partial_derivative(
-            self, theta: np.ndarray, x: np.ndarray, parameter_index: int
+            self, theta: np.ndarray, x: np.ndarray, parameter_index: int, **kwargs
     ) -> np.ndarray:
         """ Partial derivative at theta_{parameter_index} of the function f_{-}(x)
         Parameters
@@ -58,6 +58,7 @@ class ParametricFunction(ABC):
             x: np.ndarray,
             parameter1_index: int,
             parameter2_index: int,
+            **kwargs
     ) -> np.ndarray:
         """ Second Partial derivative at theta_{parameter1_index} and theta_{parameter2_index} of the function f_{-}(x)
         Parameters
